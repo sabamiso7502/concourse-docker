@@ -12,13 +12,19 @@ services:
       options:
         max-file: "5"
         max-size: "10m"
+  lb:
+    image: lb
+    depends_on: [web1,web2]
+    build:
+      context: ./lb
+    ports:
+      - "10000:10000"
+      - "2222:2222"
 
-  web:
+  web1:
     image: concourse/concourse
     command: web
-    links: [db]
     depends_on: [db]
-    ports: ["8080:8080"]
     volumes: ["./keys/web:/concourse-keys"]
     environment:
       CONCOURSE_EXTERNAL_URL: http://localhost:8080
@@ -34,16 +40,49 @@ services:
         max-file: "5"
         max-size: "10m"
 
-  worker:
+  web2:
+    image: concourse/concourse
+    command: web
+    depends_on: [db]
+    volumes: ["./keys/web:/concourse-keys"]
+    environment:
+      CONCOURSE_EXTERNAL_URL: http://localhost:8080
+      CONCOURSE_POSTGRES_HOST: db
+      CONCOURSE_POSTGRES_USER: concourse_user
+      CONCOURSE_POSTGRES_PASSWORD: concourse_pass
+      CONCOURSE_POSTGRES_DATABASE: concourse
+      CONCOURSE_ADD_LOCAL_USER: test:test
+      CONCOURSE_MAIN_TEAM_LOCAL_USER: test
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "10m"
+
+  worker1:
     image: concourse/concourse
     command: worker
     privileged: true
-    depends_on: [web]
+    depends_on: [web1,web2,lb]
     volumes: ["./keys/worker:/concourse-keys"]
-    links: [web]
     stop_signal: SIGUSR2
     environment:
-      CONCOURSE_TSA_HOST: web:2222
+      CONCOURSE_TSA_HOST: lb:2222
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "10m"
+
+  worker2:
+    image: concourse/concourse
+    command: worker
+    privileged: true
+    depends_on: [web1,web2,lb]
+    volumes: ["./keys/worker:/concourse-keys"]
+    stop_signal: SIGUSR2
+    environment:
+      CONCOURSE_TSA_HOST: lb:2222
     logging:
       driver: "json-file"
       options:
